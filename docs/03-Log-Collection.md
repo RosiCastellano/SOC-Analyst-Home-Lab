@@ -8,9 +8,9 @@ This guide covers configuring log collection from various sources to your SIEM.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         LOG SOURCES                              │
+│                         LOG SOURCES                             │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
+│                                                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
 │  │  Windows 10  │  │   Windows    │  │    Linux     │           │
 │  │  Workstation │  │   Server     │  │   Servers    │           │
@@ -19,23 +19,23 @@ This guide covers configuring log collection from various sources to your SIEM.
 │  │  • WinEvt    │  │  • WinEvt    │  │  • Syslog    │           │
 │  │  • PowerShell│  │  • AD Logs   │  │  • Auth logs │           │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘           │
-│         │                 │                  │                   │
-│         ▼                 ▼                  ▼                   │
+│         │                 │                  │                  │
+│         ▼                 ▼                  ▼                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
 │  │   Splunk UF  │  │   Splunk UF  │  │  Filebeat    │           │
 │  │      or      │  │      or      │  │      or      │           │
 │  │  Winlogbeat  │  │  Winlogbeat  │  │ Splunk UF    │           │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘           │
-│         │                 │                  │                   │
-│         └─────────────────┼──────────────────┘                   │
-│                           │                                      │
-│                           ▼                                      │
+│         │                 │                  │                  │
+│         └─────────────────┼──────────────────┘                  │
+│                           │                                     │
+│                           ▼                                     │
 │                  ┌──────────────────┐                           │
 │                  │   SIEM Server    │                           │
 │                  │  (Splunk/ELK)    │                           │
 │                  │   10.0.0.10      │                           │
 │                  └──────────────────┘                           │
-│                                                                  │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
