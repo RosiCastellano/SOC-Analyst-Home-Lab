@@ -1,0 +1,137 @@
+# ======================== SOC Analyst Home Lab ========================
+# Winlogbeat Configuration
+# Repository: https://github.com/RosiCastellano/SOC-Analyst-Home-Lab
+# ======================================================================
+
+# ======================= Winlogbeat inputs ============================
+winlogbeat.event_logs:
+
+  # Windows Security Events - Authentication, privilege use, etc.
+  - name: Security
+    processors:
+      - drop_event.when.or:
+          - equals.winlog.event_id: 5156  # Windows Filtering Platform
+          - equals.winlog.event_id: 5158  # Windows Filtering Platform
+
+  # Sysmon Events - Critical for threat detection
+  - name: Microsoft-Windows-Sysmon/Operational
+    
+  # PowerShell Events - Script execution monitoring
+  - name: Microsoft-Windows-PowerShell/Operational
+    event_id: 4103, 4104, 4105, 4106
+    
+  - name: Windows PowerShell
+    event_id: 400, 403, 600, 800
+
+  # System Events - Service creation, driver loads
+  - name: System
+    
+  # Application Events
+  - name: Application
+    
+  # Windows Defender Events
+  - name: Microsoft-Windows-Windows Defender/Operational
+  
+  # Task Scheduler Events
+  - name: Microsoft-Windows-TaskScheduler/Operational
+    event_id: 106, 140, 141, 142
+
+  # WMI Events
+  - name: Microsoft-Windows-WMI-Activity/Operational
+  
+  # Bits-Client Events (file transfers)
+  - name: Microsoft-Windows-Bits-Client/Operational
+
+  # DNS Client Events
+  - name: Microsoft-Windows-DNS-Client/Operational
+  
+  # AppLocker Events (if enabled)
+  - name: Microsoft-Windows-AppLocker/EXE and DLL
+  - name: Microsoft-Windows-AppLocker/MSI and Script
+
+# ========================== Processors ================================
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  
+  # Add useful fields
+  - script:
+      lang: javascript
+      source: |
+        function process(event) {
+          var eventId = event.Get("winlog.event_id");
+          if (eventId) {
+            // Add attack technique mapping
+            var technique = "";
+            switch(eventId) {
+              case 4625: technique = "T1110 - Brute Force"; break;
+              case 4624: technique = "T1078 - Valid Accounts"; break;
+              case 4648: technique = "T1078 - Explicit Credentials"; break;
+              case 7045: technique = "T1543.003 - Windows Service"; break;
+            }
+            if (technique) {
+              event.Put("mitre_attack", technique);
+            }
+          }
+        }
+
+# ========================= Elasticsearch Output =======================
+output.elasticsearch:
+  hosts: ["10.0.0.10:9200"]
+  protocol: "https"
+  username: "elastic"
+  password: "CHANGE_ME"
+  ssl.verification_mode: "none"
+  
+  # Index configuration
+  index: "winlogbeat-%{+yyyy.MM.dd}"
+  
+  # Bulk settings for performance
+  bulk_max_size: 1000
+
+# ========================= Logstash Output (Alternative) ==============
+#output.logstash:
+#  hosts: ["10.0.0.10:5044"]
+#  ssl.enabled: false
+
+# ========================= Kibana Configuration =======================
+setup.kibana:
+  host: "10.0.0.10:5601"
+  protocol: "https"
+  username: "elastic"
+  password: "CHANGE_ME"
+  ssl.verification_mode: "none"
+
+# ========================= Index Lifecycle Management =================
+setup.ilm.enabled: true
+setup.ilm.rollover_alias: "winlogbeat"
+setup.ilm.pattern: "{now/d}-000001"
+
+# ========================= Dashboards =================================
+setup.dashboards.enabled: true
+
+# ========================= Template Settings ==========================
+setup.template.name: "winlogbeat"
+setup.template.pattern: "winlogbeat-*"
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 0
+
+# ========================= Logging ====================================
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: C:\ProgramData\winlogbeat\Logs
+  name: winlogbeat
+  keepfiles: 7
+  permissions: 0644
+
+# ========================= Monitoring =================================
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["10.0.0.10:9200"]
+  protocol: "https"
+  username: "beats_system"
+  password: "CHANGE_ME"
+  ssl.verification_mode: "none"

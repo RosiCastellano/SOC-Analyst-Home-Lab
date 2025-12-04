@@ -1,0 +1,265 @@
+# ======================== SOC Analyst Home Lab ========================
+# Suricata IDS Configuration (Simplified for Home Lab)
+# Repository: https://github.com/RosiCastellano/SOC-Analyst-Home-Lab
+# ======================================================================
+
+%YAML 1.1
+---
+
+# Global settings
+vars:
+  # Define your network ranges
+  address-groups:
+    HOME_NET: "[10.0.0.0/8,172.16.0.0/12,192.168.0.0/16]"
+    EXTERNAL_NET: "!$HOME_NET"
+    
+    # Specific network segments
+    MANAGEMENT_NET: "[10.0.0.0/24]"
+    VICTIM_NET: "[10.0.1.0/24]"
+    ATTACKER_NET: "[10.0.2.0/24]"
+    
+    # Server definitions
+    HTTP_SERVERS: "$VICTIM_NET"
+    SMTP_SERVERS: "$VICTIM_NET"
+    SQL_SERVERS: "$VICTIM_NET"
+    DNS_SERVERS: "$VICTIM_NET"
+    
+  port-groups:
+    HTTP_PORTS: "80,443,8080,8443"
+    SHELLCODE_PORTS: "!80"
+    SSH_PORTS: "22"
+
+# Stats configuration
+stats:
+  enabled: yes
+  interval: 60
+
+# Output configuration
+outputs:
+  # EVE JSON output - Primary log format for SIEM
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      
+      # Types of events to log
+      types:
+        - alert:
+            payload: yes
+            payload-buffer-size: 4kb
+            payload-printable: yes
+            packet: yes
+            metadata: yes
+            http-body: yes
+            http-body-printable: yes
+            tagged-packets: yes
+            
+        - anomaly:
+            enabled: yes
+            types:
+              decode: yes
+              stream: yes
+              applayer: yes
+              
+        - http:
+            extended: yes
+            
+        - dns:
+            version: 2
+            
+        - tls:
+            extended: yes
+            
+        - files:
+            force-magic: yes
+            force-hash: [md5, sha256]
+            
+        - smtp:
+            extended: yes
+            
+        - ssh
+        
+        - flow
+        
+        - netflow
+        
+        - stats:
+            totals: yes
+            threads: no
+
+  # Fast log for quick review
+  - fast:
+      enabled: yes
+      filename: fast.log
+      append: yes
+
+  # Alert syslog output
+  - syslog:
+      enabled: no
+      facility: local5
+      level: Info
+
+# Logging configuration
+logging:
+  default-log-level: notice
+  outputs:
+    - console:
+        enabled: no
+    - file:
+        enabled: yes
+        level: info
+        filename: suricata.log
+    - syslog:
+        enabled: no
+        facility: local5
+        format: "[%i] <%d> -- "
+
+# Application layer protocol detection
+app-layer:
+  protocols:
+    http:
+      enabled: yes
+      libhtp:
+        default-config:
+          personality: IDS
+          request-body-limit: 100kb
+          response-body-limit: 100kb
+          
+    tls:
+      enabled: yes
+      detection-ports:
+        dp: 443
+        
+    smtp:
+      enabled: yes
+      
+    ssh:
+      enabled: yes
+      
+    dns:
+      enabled: yes
+      
+    ftp:
+      enabled: yes
+      
+    smb:
+      enabled: yes
+      detection-ports:
+        dp: 139, 445
+        
+    dcerpc:
+      enabled: yes
+      
+    rdp:
+      enabled: yes
+      
+    nfs:
+      enabled: yes
+      
+    dhcp:
+      enabled: yes
+
+# Detection engine settings
+detect:
+  profile: high
+  custom-values:
+    toclient-groups: 3
+    toserver-groups: 25
+  sgh-mpm-context: auto
+  inspection-recursion-limit: 3000
+  
+# Threading settings
+threading:
+  set-cpu-affinity: no
+  detect-thread-ratio: 1.0
+
+# Stream engine settings
+stream:
+  memcap: 256mb
+  checksum-validation: yes
+  inline: auto
+  reassembly:
+    memcap: 512mb
+    depth: 1mb
+    toserver-chunk-size: 2560
+    toclient-chunk-size: 2560
+
+# Host settings
+host:
+  hash-size: 4096
+  prealloc: 1000
+  memcap: 32mb
+
+# Flow settings
+flow:
+  memcap: 256mb
+  hash-size: 65536
+  prealloc: 10000
+  emergency-recovery: 30
+
+# Defrag settings
+defrag:
+  memcap: 32mb
+  hash-size: 65536
+  trackers: 65535
+  max-frags: 65535
+  prealloc: yes
+  timeout: 60
+
+# Protocol detection
+detect-engine:
+  - profile: medium
+  - custom-values:
+      toclient-groups: 2
+      toserver-groups: 25
+  - sgh-mpm-context: auto
+  - inspection-recursion-limit: 3000
+
+# Rule files
+default-rule-path: /var/lib/suricata/rules
+
+rule-files:
+  - suricata.rules
+  # Emerging Threats rules
+  - emerging-attack_response.rules
+  - emerging-exploit.rules
+  - emerging-malware.rules
+  - emerging-trojan.rules
+  - emerging-web_client.rules
+  - emerging-web_server.rules
+  - emerging-scan.rules
+  - emerging-policy.rules
+
+# Classification config
+classification-file: /etc/suricata/classification.config
+
+# Reference config
+reference-config-file: /etc/suricata/reference.config
+
+# Threshold config
+threshold-file: /etc/suricata/threshold.config
+
+# Capture settings
+af-packet:
+  - interface: eth0
+    threads: auto
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    use-mmap: yes
+    buffer-size: 64535
+    ring-size: 2048
+    
+# For pcap capture (alternative)
+pcap:
+  - interface: eth0
+    buffer-size: 16mb
+
+# File extraction
+file-store:
+  version: 2
+  enabled: no
+  dir: /var/log/suricata/files
+  write-fileinfo: yes
+  stream-depth: 0
+  force-hash: [sha256, md5]

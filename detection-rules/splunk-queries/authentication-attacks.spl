@@ -1,0 +1,100 @@
+` ======================== SOC Analyst Home Lab ========================
+` Splunk Detection Queries - Authentication Attacks
+` Repository: https://github.com/RosiCastellano/SOC-Analyst-Home-Lab
+` ======================================================================
+
+` ==================== BRUTE FORCE DETECTION ==========================
+
+` Basic Brute Force - Multiple Failed Logins
+index=windows sourcetype="WinEventLog:Security" EventCode=4625
+| bin _time span=5m
+| stats count as failed_attempts by src_ip, user, _time
+| where failed_attempts > 10
+| eval severity="high"
+| eval mitre_technique="T1110 - Brute Force"
+
+` =====================================================================
+
+` Brute Force with Success - Failed attempts followed by success
+index=windows sourcetype="WinEventLog:Security" (EventCode=4625 OR EventCode=4624)
+| eval status=if(EventCode=4625, "failed", "success")
+| transaction user maxspan=15m startswith="status=failed" endswith="status=success"
+| where eventcount > 5 AND status="success"
+| eval severity="critical"
+| eval mitre_technique="T1110 - Brute Force (Successful)"
+| table _time, user, src_ip, eventcount, duration
+
+` =====================================================================
+
+` Password Spraying Detection - Same password, multiple users
+index=windows sourcetype="WinEventLog:Security" EventCode=4625
+| bin _time span=10m
+| stats dc(user) as unique_users, values(user) as targeted_users by src_ip, _time
+| where unique_users > 5
+| eval severity="high"
+| eval mitre_technique="T1110.003 - Password Spraying"
+
+` =====================================================================
+
+` Distributed Brute Force - Multiple sources, same target
+index=windows sourcetype="WinEventLog:Security" EventCode=4625
+| bin _time span=15m
+| stats dc(src_ip) as unique_sources, count as attempts by user, _time
+| where unique_sources > 3 AND attempts > 10
+| eval severity="high"
+| eval mitre_technique="T1110 - Distributed Brute Force"
+
+` =====================================================================
+
+` Kerberos Brute Force (Pre-Authentication Failures)
+index=windows sourcetype="WinEventLog:Security" EventCode=4771 Failure_Code=0x18
+| bin _time span=5m
+| stats count by Client_Address, user, _time
+| where count > 10
+| eval severity="high"
+| eval mitre_technique="T1110 - Kerberos Brute Force"
+
+` =====================================================================
+
+` Account Lockouts
+index=windows sourcetype="WinEventLog:Security" EventCode=4740
+| stats count by user, src_ip
+| eval severity="medium"
+| eval mitre_technique="T1110 - Account Lockout Detected"
+
+` =====================================================================
+
+` Login from Unusual Location (Requires GeoIP)
+index=windows sourcetype="WinEventLog:Security" EventCode=4624 Logon_Type=10
+| iplocation src_ip
+| search NOT (Country="United States" OR Country="Expected_Country")
+| eval severity="medium"
+| eval mitre_technique="T1078 - Valid Accounts (Unusual Location)"
+| table _time, user, src_ip, Country, City
+
+` =====================================================================
+
+` After-Hours Authentication
+index=windows sourcetype="WinEventLog:Security" EventCode=4624
+| eval hour=strftime(_time, "%H")
+| where hour < 6 OR hour > 20
+| stats count by user, hour
+| eval severity="low"
+| eval mitre_technique="T1078 - Off-Hours Authentication"
+
+` =====================================================================
+
+` New User Account Created
+index=windows sourcetype="WinEventLog:Security" EventCode=4720
+| eval severity="medium"
+| eval mitre_technique="T1136 - Create Account"
+| table _time, user, Target_Account_Name, Creator_Process_Name
+
+` =====================================================================
+
+` User Added to Privileged Group
+index=windows sourcetype="WinEventLog:Security" (EventCode=4728 OR EventCode=4732 OR EventCode=4756)
+| search Group_Name IN ("Domain Admins", "Enterprise Admins", "Schema Admins", "Administrators", "Backup Operators")
+| eval severity="critical"
+| eval mitre_technique="T1098 - Account Manipulation"
+| table _time, user, Target_Account_Name, Group_Name

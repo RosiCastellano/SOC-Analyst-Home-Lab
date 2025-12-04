@@ -1,0 +1,192 @@
+# ======================== SOC Analyst Home Lab ========================
+# Filebeat Configuration for Linux Systems
+# Repository: https://github.com/RosiCastellano/SOC-Analyst-Home-Lab
+# ======================================================================
+
+# ========================== Filebeat inputs ===========================
+filebeat.inputs:
+
+# System authentication logs
+- type: log
+  id: auth-logs
+  enabled: true
+  paths:
+    - /var/log/auth.log
+    - /var/log/secure
+  fields:
+    log_type: authentication
+  fields_under_root: true
+  
+# Syslog
+- type: log
+  id: syslog
+  enabled: true
+  paths:
+    - /var/log/syslog
+    - /var/log/messages
+  fields:
+    log_type: syslog
+  fields_under_root: true
+
+# Audit logs
+- type: log
+  id: audit-logs
+  enabled: true
+  paths:
+    - /var/log/audit/audit.log
+  fields:
+    log_type: audit
+  fields_under_root: true
+
+# Apache/Nginx access logs
+- type: log
+  id: web-access
+  enabled: true
+  paths:
+    - /var/log/apache2/access.log
+    - /var/log/nginx/access.log
+    - /var/log/httpd/access_log
+  fields:
+    log_type: web_access
+  fields_under_root: true
+
+# Apache/Nginx error logs
+- type: log
+  id: web-error
+  enabled: true
+  paths:
+    - /var/log/apache2/error.log
+    - /var/log/nginx/error.log
+    - /var/log/httpd/error_log
+  fields:
+    log_type: web_error
+  fields_under_root: true
+
+# SSH logs (more specific)
+- type: log
+  id: ssh-logs
+  enabled: true
+  paths:
+    - /var/log/auth.log
+  include_lines: ['sshd']
+  fields:
+    log_type: ssh
+  fields_under_root: true
+
+# Cron logs
+- type: log
+  id: cron-logs
+  enabled: true
+  paths:
+    - /var/log/cron
+    - /var/log/cron.log
+  fields:
+    log_type: cron
+  fields_under_root: true
+
+# Fail2ban logs
+- type: log
+  id: fail2ban
+  enabled: true
+  paths:
+    - /var/log/fail2ban.log
+  fields:
+    log_type: fail2ban
+  fields_under_root: true
+
+# ========================== Filebeat modules ==========================
+filebeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: true
+  reload.period: 10s
+
+# ========================== Processors ================================
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - add_docker_metadata: ~
+  
+  # Parse syslog messages
+  - dissect:
+      when:
+        equals:
+          log_type: syslog
+      tokenizer: "%{timestamp} %{hostname} %{program}[%{pid}]: %{message}"
+      field: "message"
+      target_prefix: "syslog"
+      
+  # Add GeoIP data for IP addresses
+  - add_locale: ~
+
+  # Drop debug/info noise
+  - drop_event:
+      when:
+        or:
+          - contains:
+              message: "CRON"
+          - contains:
+              message: "systemd-resolved"
+
+# ========================= Elasticsearch Output =======================
+output.elasticsearch:
+  hosts: ["10.0.0.10:9200"]
+  protocol: "https"
+  username: "elastic"
+  password: "CHANGE_ME"
+  ssl.verification_mode: "none"
+  
+  # Index configuration
+  index: "filebeat-%{[agent.version]}-%{+yyyy.MM.dd}"
+  
+  # Pipelines
+  pipelines:
+    - pipeline: "geoip-info"
+      when.contains:
+        log_type: "authentication"
+
+# ========================= Logstash Output (Alternative) ==============
+#output.logstash:
+#  hosts: ["10.0.0.10:5044"]
+#  ssl.enabled: false
+
+# ========================= Kibana Configuration =======================
+setup.kibana:
+  host: "10.0.0.10:5601"
+  protocol: "https"
+  username: "elastic"
+  password: "CHANGE_ME"
+  ssl.verification_mode: "none"
+
+# ========================= Index Lifecycle Management =================
+setup.ilm.enabled: true
+setup.ilm.rollover_alias: "filebeat"
+setup.ilm.pattern: "{now/d}-000001"
+
+# ========================= Dashboards =================================
+setup.dashboards.enabled: true
+
+# ========================= Template Settings ==========================
+setup.template.name: "filebeat"
+setup.template.pattern: "filebeat-*"
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 0
+
+# ========================= Logging ====================================
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+# ========================= Monitoring =================================
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["10.0.0.10:9200"]
+  protocol: "https"
+  username: "beats_system"
+  password: "CHANGE_ME"
+  ssl.verification_mode: "none"

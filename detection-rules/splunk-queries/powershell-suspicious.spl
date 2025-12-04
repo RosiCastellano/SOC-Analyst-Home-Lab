@@ -1,0 +1,168 @@
+` ======================== SOC Analyst Home Lab ========================
+` Splunk Detection Queries - Suspicious PowerShell Activity
+` Repository: https://github.com/RosiCastellano/SOC-Analyst-Home-Lab
+` ======================================================================
+
+` ==================== ENCODED COMMANDS ===============================
+
+` Base64 Encoded PowerShell
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(-enc|-encodedcommand|-e\s+[A-Za-z0-9+/=]{20,})"
+| eval severity="high"
+| eval mitre_technique="T1059.001 - Encoded PowerShell"
+| table _time, Computer, User, CommandLine, ParentImage
+
+` =====================================================================
+
+` Double-Encoded PowerShell (Extra suspicious)
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(frombase64|tobase64).*(-enc|-encoded)"
+| eval severity="critical"
+| eval mitre_technique="T1059.001 - Double Encoded PowerShell"
+| table _time, Computer, User, CommandLine
+
+` ==================== DOWNLOAD CRADLES ===============================
+
+` PowerShell Download Cradle
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(Invoke-WebRequest|wget|curl|DownloadString|DownloadFile|Net\.WebClient|WebRequest|Invoke-RestMethod|IWR|iex.*new-object)"
+| eval severity="high"
+| eval mitre_technique="T1105 - Ingress Tool Transfer"
+| table _time, Computer, User, CommandLine, ParentImage
+
+` =====================================================================
+
+` PowerShell IEX Download Execute
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)IEX\s*\(\s*(New-Object|Invoke-WebRequest|\(New-Object)"
+| eval severity="critical"
+| eval mitre_technique="T1059.001 - IEX Download Execute"
+| table _time, Computer, User, CommandLine
+
+` ==================== BYPASS TECHNIQUES ==============================
+
+` Execution Policy Bypass
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(-ep\s+bypass|-executionpolicy\s+bypass|Set-ExecutionPolicy\s+.*Bypass|Set-ExecutionPolicy\s+.*Unrestricted)"
+| eval severity="medium"
+| eval mitre_technique="T1059.001 - Execution Policy Bypass"
+| table _time, Computer, User, CommandLine
+
+` =====================================================================
+
+` AMSI Bypass Attempts
+index=sysmon EventCode=1
+| regex CommandLine="(?i)(amsiInitFailed|AmsiScanBuffer|amsi\.dll|Reflection\.Assembly.*Load|SetValue.*amsi)"
+| eval severity="critical"
+| eval mitre_technique="T1562.001 - AMSI Bypass"
+| table _time, Computer, User, CommandLine
+
+` =====================================================================
+
+` Constrained Language Mode Bypass
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(__PSLockdownPolicy|FullLanguage|LanguageMode)"
+| eval severity="high"
+| eval mitre_technique="T1059.001 - CLM Bypass"
+| table _time, Computer, User, CommandLine
+
+` ==================== OBFUSCATION ====================================
+
+` Obfuscated PowerShell (Character replacement)
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(\$\{|\`|\^|%[0-9a-f]{2}|chr\(|[char])"
+| regex CommandLine="(\w{0,3}\`\w{0,3}){3,}"
+| eval severity="high"
+| eval mitre_technique="T1059.001 - Obfuscated PowerShell"
+| table _time, Computer, User, CommandLine
+
+` =====================================================================
+
+` Invoke-Obfuscation Detection
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(invoke-expression.*\(\s*\$|\.value\.invoke|scriptblock\.create)"
+| eval severity="high"
+| eval mitre_technique="T1059.001 - Invoke-Obfuscation"
+| table _time, Computer, User, CommandLine
+
+` ==================== SUSPICIOUS CMDLETS =============================
+
+` Reconnaissance Cmdlets
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(Get-ADUser|Get-ADComputer|Get-ADGroup|Get-ADDomain|Get-DomainUser|Get-DomainComputer|Get-NetUser|Get-NetComputer|Get-NetGroup)"
+| eval severity="medium"
+| eval mitre_technique="T1087 - Account Discovery"
+| table _time, Computer, User, CommandLine
+
+` =====================================================================
+
+` Credential Harvesting Cmdlets
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(Get-Credential|ConvertTo-SecureString|Get-GPPPassword|Find-GPOPassword)"
+| eval severity="high"
+| eval mitre_technique="T1552 - Credentials in Files"
+| table _time, Computer, User, CommandLine
+
+` =====================================================================
+
+` Persistence Cmdlets
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(New-ScheduledTask|Register-ScheduledTask|New-Service|Set-ItemProperty.*Run)"
+| eval severity="high"
+| eval mitre_technique="T1053 - Scheduled Task/Job"
+| table _time, Computer, User, CommandLine
+
+` ==================== REMOTING =======================================
+
+` PowerShell Remoting
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(Enter-PSSession|Invoke-Command|New-PSSession|Enable-PSRemoting)"
+| where NOT match(User, "(?i)(SYSTEM|Administrator)")
+| eval severity="medium"
+| eval mitre_technique="T1021.006 - PowerShell Remoting"
+| table _time, Computer, User, CommandLine
+
+` =====================================================================
+
+` WinRM Usage
+index=sysmon EventCode=1
+| regex CommandLine="(?i)(winrm|Set-WSManQuickConfig|Enable-PSRemoting)"
+| eval severity="medium"
+| eval mitre_technique="T1021.006 - WinRM"
+| table _time, Computer, User, CommandLine
+
+` ==================== SCRIPT BLOCK LOGGING ===========================
+
+` Suspicious PowerShell Script Blocks (requires ScriptBlock logging)
+index=windows sourcetype="WinEventLog:PowerShell" EventCode=4104
+| regex ScriptBlockText="(?i)(mimikatz|invoke-mimikatz|sekurlsa|kerberos::list|invoke-kerberoast)"
+| eval severity="critical"
+| eval mitre_technique="T1003 - Credential Dumping Script"
+| table _time, Computer, UserID, ScriptBlockText
+
+` =====================================================================
+
+` PowerShell Script with Network Activity
+index=windows sourcetype="WinEventLog:PowerShell" EventCode=4104
+| regex ScriptBlockText="(?i)(System\.Net\.WebClient|Net\.Sockets\.TCPClient|System\.Net\.HttpWebRequest)"
+| eval severity="high"
+| eval mitre_technique="T1059.001 - Network Script"
+| table _time, Computer, UserID, ScriptBlockText
+
+` ==================== PARENT PROCESS ANOMALIES =======================
+
+` PowerShell Spawned from Unusual Parents
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex ParentImage="(?i)(winword|excel|outlook|onenote|msaccess|powerpnt|wscript|cscript|mshta|cmd)"
+| eval severity="high"
+| eval mitre_technique="T1059.001 - Suspicious Parent"
+| table _time, Computer, User, ParentImage, CommandLine
+
+` =====================================================================
+
+` Hidden Window PowerShell
+index=sysmon EventCode=1 Image="*\\powershell.exe"
+| regex CommandLine="(?i)(-w\s+hidden|-windowstyle\s+hidden)"
+| eval severity="medium"
+| eval mitre_technique="T1059.001 - Hidden PowerShell"
+| table _time, Computer, User, CommandLine, ParentImage

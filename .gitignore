@@ -1,0 +1,82 @@
+# SOC Analyst Home Lab - .gitignore
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+logs/
+
+# Sensitive data - NEVER commit these
+*.pem
+*.key
+*.crt
+*.pfx
+passwords.txt
+credentials.txt
+secrets.txt
+
+# Splunk specific
+*.license
+local.meta
+
+# Virtual machine files
+*.vmdk
+*.vdi
+*.ova
+*.ovf
+*.vmx
+*.vmxf
+*.nvram
+
+# Packet captures (can be large)
+*.pcap
+*.pcapng
+
+# Memory dumps
+*.dmp
+*.dump
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+ENV/
+
+# Node modules (if using any JS tools)
+node_modules/
+
+# Compiled files
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test output
+test-results/
+coverage/
