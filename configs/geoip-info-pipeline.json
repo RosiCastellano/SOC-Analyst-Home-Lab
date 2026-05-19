@@ -1,0 +1,45 @@
+{
+  "description": "SOC Analyst Home Lab - GeoIP enrichment for authentication logs. Referenced by configs/filebeat.yml (output.elasticsearch.pipelines: geoip-info).",
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": [
+          "%{IP:source.ip}"
+        ],
+        "ignore_failure": true,
+        "ignore_missing": true
+      }
+    },
+    {
+      "geoip": {
+        "field": "source.ip",
+        "target_field": "source.geo",
+        "ignore_missing": true,
+        "on_failure": [
+          {
+            "set": {
+              "field": "error.geoip",
+              "value": "geoip lookup failed (private/unresolvable IP)"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "set": {
+        "field": "event.category",
+        "value": "authentication",
+        "override": false
+      }
+    }
+  ],
+  "on_failure": [
+    {
+      "set": {
+        "field": "error.pipeline",
+        "value": "geoip-info processing error: {{ _ingest.on_failure_message }}"
+      }
+    }
+  ]
+}

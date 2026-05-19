@@ -173,7 +173,10 @@ Rename-Item "C:\Program Files\winlogbeat-8.11.0-windows-x86_64" "C:\Program File
 #### Configure winlogbeat.yml
 See `configs/winlogbeat.yml` for full configuration.
 
-Key settings:
+Use the full configuration in [`configs/winlogbeat.yml`](../configs/winlogbeat.yml).
+It does **not** contain a plaintext password. Credentials are read from the
+Winlogbeat keystore at runtime, so the output block looks like this:
+
 ```yaml
 winlogbeat.event_logs:
   - name: Security
@@ -184,9 +187,25 @@ winlogbeat.event_logs:
 
 output.elasticsearch:
   hosts: ["10.0.0.10:9200"]
-  username: "elastic"
-  password: "YOUR_PASSWORD"
+  username: "${ES_USER}"
+  password: "${ES_PWD}"
 ```
+
+Provision the keystore once before starting the service (run from the
+Winlogbeat install directory, e.g. `C:\Program Files\Winlogbeat`):
+
+```powershell
+.\winlogbeat.exe keystore create
+.\winlogbeat.exe keystore add ES_USER       # value: elastic
+.\winlogbeat.exe keystore add ES_PWD        # value: <your elastic password>
+.\winlogbeat.exe keystore add ES_MON_USER   # value: beats_system
+.\winlogbeat.exe keystore add ES_MON_PWD    # value: <beats_system password>
+.\winlogbeat.exe keystore list              # verify
+```
+
+> **Why:** keeping secrets out of version-controlled config files is a basic
+> credential-hygiene practice. The Filebeat setup on Linux uses the same
+> pattern (`filebeat keystore ...`).
 
 #### Install as Service
 ```powershell
@@ -299,6 +318,21 @@ sudo nano /etc/filebeat/filebeat.yml
 ```
 
 See `configs/filebeat.yml` for full configuration.
+
+```bash
+# Provision the keystore (filebeat.yml reads creds from here, not from disk)
+sudo filebeat keystore create
+sudo filebeat keystore add ES_USER       # value: elastic
+sudo filebeat keystore add ES_PWD        # value: <your elastic password>
+sudo filebeat keystore add ES_MON_USER   # value: beats_system
+sudo filebeat keystore add ES_MON_PWD    # value: <beats_system password>
+
+# Load the geoip-info ingest pipeline (filebeat.yml routes auth logs to it).
+# Without this, Filebeat errors on a missing pipeline for authentication logs.
+curl -k -u elastic -X PUT "https://10.0.0.10:9200/_ingest/pipeline/geoip-info" \
+  -H "Content-Type: application/json" \
+  --data-binary @configs/geoip-info-pipeline.json
+```
 
 ```bash
 # Start Filebeat
