@@ -6,7 +6,11 @@
 ` ==================== BRUTE FORCE DETECTION ==========================
 
 ` Basic Brute Force - Multiple Failed Logins
+` Note: WinEventLog:Security does not expose src_ip natively. The IP for a
+` failed logon (4625) is in IpAddress / Source_Network_Address. Normalize first.
 index=windows sourcetype="WinEventLog:Security" EventCode=4625
+| eval src_ip=coalesce(src_ip, IpAddress, Source_Network_Address, Source_Address)
+| where isnotnull(src_ip) AND src_ip!="-" AND src_ip!="::1" AND src_ip!="127.0.0.1"
 | bin _time span=5m
 | stats count as failed_attempts by src_ip, user, _time
 | where failed_attempts > 10
@@ -17,6 +21,7 @@ index=windows sourcetype="WinEventLog:Security" EventCode=4625
 
 ` Brute Force with Success - Failed attempts followed by success
 index=windows sourcetype="WinEventLog:Security" (EventCode=4625 OR EventCode=4624)
+| eval src_ip=coalesce(src_ip, IpAddress, Source_Network_Address, Source_Address)
 | eval status=if(EventCode=4625, "failed", "success")
 | transaction user maxspan=15m startswith="status=failed" endswith="status=success"
 | where eventcount > 5 AND status="success"
@@ -28,6 +33,8 @@ index=windows sourcetype="WinEventLog:Security" (EventCode=4625 OR EventCode=462
 
 ` Password Spraying Detection - Same password, multiple users
 index=windows sourcetype="WinEventLog:Security" EventCode=4625
+| eval src_ip=coalesce(src_ip, IpAddress, Source_Network_Address, Source_Address)
+| where isnotnull(src_ip) AND src_ip!="-"
 | bin _time span=10m
 | stats dc(user) as unique_users, values(user) as targeted_users by src_ip, _time
 | where unique_users > 5
@@ -38,6 +45,8 @@ index=windows sourcetype="WinEventLog:Security" EventCode=4625
 
 ` Distributed Brute Force - Multiple sources, same target
 index=windows sourcetype="WinEventLog:Security" EventCode=4625
+| eval src_ip=coalesce(src_ip, IpAddress, Source_Network_Address, Source_Address)
+| where isnotnull(src_ip) AND src_ip!="-"
 | bin _time span=15m
 | stats dc(src_ip) as unique_sources, count as attempts by user, _time
 | where unique_sources > 3 AND attempts > 10
@@ -58,6 +67,7 @@ index=windows sourcetype="WinEventLog:Security" EventCode=4771 Failure_Code=0x18
 
 ` Account Lockouts
 index=windows sourcetype="WinEventLog:Security" EventCode=4740
+| eval src_ip=coalesce(src_ip, IpAddress, Source_Network_Address, Caller_Computer_Name)
 | stats count by user, src_ip
 | eval severity="medium"
 | eval mitre_technique="T1110 - Account Lockout Detected"
@@ -66,6 +76,8 @@ index=windows sourcetype="WinEventLog:Security" EventCode=4740
 
 ` Login from Unusual Location (Requires GeoIP)
 index=windows sourcetype="WinEventLog:Security" EventCode=4624 Logon_Type=10
+| eval src_ip=coalesce(src_ip, IpAddress, Source_Network_Address, Source_Address)
+| where isnotnull(src_ip) AND src_ip!="-" AND src_ip!="127.0.0.1"
 | iplocation src_ip
 | search NOT (Country="United States" OR Country="Expected_Country")
 | eval severity="medium"

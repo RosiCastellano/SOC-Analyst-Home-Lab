@@ -204,7 +204,7 @@ detection:
     selection:
         TargetFilename|contains:
             - '\Start Menu\Programs\Startup\'
-            - '\Start Menu\Programs\Startup\'
+            - '\Microsoft\Windows\Start Menu\Programs\Startup\'
     condition: selection
 falsepositives:
     - Legitimate software adding startup entries

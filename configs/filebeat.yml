@@ -1,3 +1,16 @@
+# ----------------------------------------------------------------------
+# SECRETS: credentials are NOT stored in this file. They are read from
+# the filebeat keystore at runtime. Create the keystore once with:
+#
+#   filebeat keystore create
+#   filebeat keystore add ES_USER
+#   filebeat keystore add ES_PWD
+#   filebeat keystore add ES_MON_USER
+#   filebeat keystore add ES_MON_PWD
+#
+# (ES_USER=elastic, ES_MON_USER=beats_system unless you changed them.)
+# Verify with: filebeat keystore list
+# ----------------------------------------------------------------------
 # ======================== SOC Analyst Home Lab ========================
 # Filebeat Configuration for Linux Systems
 # Repository: https://github.com/RosiCastellano/SOC-Analyst-Home-Lab
@@ -132,8 +145,8 @@ processors:
 output.elasticsearch:
   hosts: ["10.0.0.10:9200"]
   protocol: "https"
-  username: "elastic"
-  password: "CHANGE_ME"
+  username: "${ES_USER}"
+  password: "${ES_PWD}"
   ssl.verification_mode: "none"
   
   # Index configuration
@@ -154,8 +167,8 @@ output.elasticsearch:
 setup.kibana:
   host: "10.0.0.10:5601"
   protocol: "https"
-  username: "elastic"
-  password: "CHANGE_ME"
+  username: "${ES_USER}"
+  password: "${ES_PWD}"
   ssl.verification_mode: "none"
 
 # ========================= Index Lifecycle Management =================
@@ -187,6 +200,6 @@ monitoring.enabled: true
 monitoring.elasticsearch:
   hosts: ["10.0.0.10:9200"]
   protocol: "https"
-  username: "beats_system"
-  password: "CHANGE_ME"
+  username: "${ES_MON_USER}"
+  password: "${ES_MON_PWD}"
   ssl.verification_mode: "none"

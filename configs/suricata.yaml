@@ -206,15 +206,6 @@ defrag:
   prealloc: yes
   timeout: 60
 
-# Protocol detection
-detect-engine:
-  - profile: medium
-  - custom-values:
-      toclient-groups: 2
-      toserver-groups: 25
-  - sgh-mpm-context: auto
-  - inspection-recursion-limit: 3000
-
 # Rule files
 default-rule-path: /var/lib/suricata/rules
 

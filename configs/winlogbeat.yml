@@ -1,3 +1,16 @@
+# ----------------------------------------------------------------------
+# SECRETS: credentials are NOT stored in this file. They are read from
+# the winlogbeat keystore at runtime. Create the keystore once with:
+#
+#   winlogbeat keystore create
+#   winlogbeat keystore add ES_USER
+#   winlogbeat keystore add ES_PWD
+#   winlogbeat keystore add ES_MON_USER
+#   winlogbeat keystore add ES_MON_PWD
+#
+# (ES_USER=elastic, ES_MON_USER=beats_system unless you changed them.)
+# Verify with: winlogbeat keystore list
+# ----------------------------------------------------------------------
 # ======================== SOC Analyst Home Lab ========================
 # Winlogbeat Configuration
 # Repository: https://github.com/RosiCastellano/SOC-Analyst-Home-Lab
@@ -80,8 +93,8 @@ processors:
 output.elasticsearch:
   hosts: ["10.0.0.10:9200"]
   protocol: "https"
-  username: "elastic"
-  password: "CHANGE_ME"
+  username: "${ES_USER}"
+  password: "${ES_PWD}"
   ssl.verification_mode: "none"
   
   # Index configuration
@@ -99,8 +112,8 @@ output.elasticsearch:
 setup.kibana:
   host: "10.0.0.10:5601"
   protocol: "https"
-  username: "elastic"
-  password: "CHANGE_ME"
+  username: "${ES_USER}"
+  password: "${ES_PWD}"
   ssl.verification_mode: "none"
 
 # ========================= Index Lifecycle Management =================
@@ -132,6 +145,6 @@ monitoring.enabled: true
 monitoring.elasticsearch:
   hosts: ["10.0.0.10:9200"]
   protocol: "https"
-  username: "beats_system"
-  password: "CHANGE_ME"
+  username: "${ES_MON_USER}"
+  password: "${ES_MON_PWD}"
   ssl.verification_mode: "none"

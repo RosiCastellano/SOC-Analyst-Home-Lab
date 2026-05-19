@@ -11,8 +11,11 @@ set -e
 ELASTIC_HOST="10.0.0.10"
 ELASTIC_PORT="9200"
 KIBANA_PORT="5601"
-ELASTIC_USER="elastic"
-ELASTIC_PASS="CHANGE_ME"
+ELASTIC_USER="${ELASTIC_USER:-elastic}"
+# Never hardcode the password. Provide it via the ELASTIC_PASS environment
+# variable or the --elastic-pass flag; the script prompts if it's missing
+# and writes it to the Filebeat keystore (not into filebeat.yml).
+ELASTIC_PASS="${ELASTIC_PASS:-}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -35,6 +38,20 @@ log_error() {
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         log_error "This script must be run as root"
+        exit 1
+    fi
+}
+
+require_credentials() {
+    if [ -z "${ELASTIC_PASS}" ]; then
+        if [ -t 0 ]; then
+            read -rsp "Enter Elasticsearch password for user '${ELASTIC_USER}': " ELASTIC_PASS
+            echo ""
+        fi
+    fi
+    if [ -z "${ELASTIC_PASS}" ]; then
+        log_error "No Elasticsearch password provided."
+        log_error "Set ELASTIC_PASS env var or use --elastic-pass (do not hardcode it)."
         exit 1
     fi
 }
@@ -181,16 +198,16 @@ processors:
 output.elasticsearch:
   hosts: ["${ELASTIC_HOST}:${ELASTIC_PORT}"]
   protocol: "https"
-  username: "${ELASTIC_USER}"
-  password: "${ELASTIC_PASS}"
+  username: "\${ES_USER}"
+  password: "\${ES_PWD}"
   ssl.verification_mode: "none"
 
 # Kibana
 setup.kibana:
   host: "${ELASTIC_HOST}:${KIBANA_PORT}"
   protocol: "https"
-  username: "${ELASTIC_USER}"
-  password: "${ELASTIC_PASS}"
+  username: "\${ES_USER}"
+  password: "\${ES_PWD}"
   ssl.verification_mode: "none"
 
 # Dashboards
@@ -206,10 +223,14 @@ logging.files:
 EOF
     fi
     
-    # Update password placeholder
-    sed -i "s/CHANGE_ME/${ELASTIC_PASS}/g" /etc/filebeat/filebeat.yml
-    
-    log_info "Configuration complete"
+    # Provision the Filebeat keystore so no secret is ever written to
+    # filebeat.yml. The config references ${ES_USER} / ${ES_PWD}.
+    log_info "Writing credentials to the Filebeat keystore..."
+    filebeat keystore create --force >/dev/null 2>&1 || filebeat keystore create >/dev/null 2>&1
+    printf '%s' "${ELASTIC_USER}" | filebeat keystore add ES_USER --stdin --force
+    printf '%s' "${ELASTIC_PASS}" | filebeat keystore add ES_PWD --stdin --force
+
+    log_info "Configuration complete (secrets stored in keystore, not in filebeat.yml)"
 }
 
 enable_filebeat_modules() {
@@ -366,6 +387,7 @@ main() {
     echo ""
     
     check_root
+    require_credentials
     detect_os
     install_prerequisites
     add_elastic_repo
